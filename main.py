@@ -1,6 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
@@ -28,12 +28,12 @@ def parse_data(text):
     for i, line in enumerate(lines):
         if line.strip() == "Hours pending review":
             try:
-                hours_pending = int(lines[i+2].strip())  
+                hours_pending = int(lines[i+2].strip())
             except (IndexError, ValueError):
                 print(f"Error parsing hours pending review. Line content: {lines[i+2] if i+2 < len(lines) else 'N/A'}")
         elif line.strip() == "Hours approved in past 7 days":
             try:
-                hours_approved = int(lines[i+2].strip()) 
+                hours_approved = int(lines[i+2].strip())
             except (IndexError, ValueError):
                 print(f"Error parsing hours approved. Line content: {lines[i+2] if i+2 < len(lines) else 'N/A'}")
 
@@ -42,28 +42,36 @@ def parse_data(text):
 
     return hours_pending, hours_approved
 
-@app.route('/api/hours', methods=['GET'])
+@app.route('/api/hours', methods=['POST'])
 def get_hours():
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                visible_text = loop.run_until_complete(get_rendered_content(url))
+    try:
+        # slack verify token
+        data = request.form
+        token = data.get('token')
+        if not token or token != 'slack verifitcation token':
+            return jsonify({"error": "Invalid request token"}), 403
 
-                print("Visible text content:")
-                print(visible_text)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        visible_text = loop.run_until_complete(get_rendered_content(url))
 
-                hours_pending, hours_approved = parse_data(visible_text)
+        print("Visible text content:")
+        print(visible_text)
 
-                if hours_pending is None or hours_approved is None:
-                    return jsonify({"error": "Failed to extract data from the page", "content": visible_text}), 500
+        hours_pending, hours_approved = parse_data(visible_text)
 
-                return jsonify({
-                    "hours_pending_review": hours_pending,
-                    "hours_approved_past_7_days": hours_approved
-                })
-            except Exception as e:
-                print(f"An error occurred: {str(e)}")
-                return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+        if hours_pending is None or hours_approved is None:
+            return jsonify({"error": "Failed to extract data from the page", "content": visible_text}), 500
+
+        response_text = f"Hours pending review: {hours_pending}\nHours approved in past 7 days: {hours_approved}"
+
+        return jsonify({
+            "response_type": "in_channel",
+            "text": response_text
+        })
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
