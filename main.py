@@ -1,6 +1,9 @@
 import asyncio
 import threading
 import requests
+import json
+import time
+from datetime import datetime
 from playwright.async_api import async_playwright
 from flask import Flask, request, jsonify
 from keep_alive import keep_alive
@@ -10,6 +13,8 @@ app = Flask(__name__)
 SLACK_BOT_TOKEN = 'slack bot token'
 SLACK_API_URL = 'https://slack.com/api/chat.postEphemeral'
 SLACK_JOIN_URL = 'https://slack.com/api/conversations.join'
+DATA_FILE = 'hour_stats.txt'
+URL = "https://airtable.com/appOKDJk2ALKSisEM/shriBhjoCj83rYCGT"
 
 async def get_rendered_content(url):
     async with async_playwright() as p:
@@ -24,8 +29,6 @@ async def get_rendered_content(url):
         visible_text = await page.evaluate('() => document.body.innerText')
         await browser.close()
         return visible_text
-
-url = "https://airtable.com/appOKDJk2ALKSisEM/shriBhjoCj83rYCGT"
 
 def parse_data(text):
     lines = text.split('\n')
@@ -86,7 +89,7 @@ def process_request(user_id, channel_id):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        visible_text = loop.run_until_complete(get_rendered_content(url))
+        visible_text = loop.run_until_complete(get_rendered_content(URL))
 
         print("Visible text content:")
         print(visible_text)
@@ -102,6 +105,30 @@ def process_request(user_id, channel_id):
         send_slack_message(user_id, channel_id, response_text)
     except Exception as e:
         print(f"An error occurred: {str(e)}")
+
+def fetch_and_save_data():
+    while True:
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            visible_text = loop.run_until_complete(get_rendered_content(URL))
+            hours_pending, hours_approved = parse_data(visible_text)
+
+            if hours_pending is not None and hours_approved is not None:
+                data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "hours_pending": hours_pending,
+                    "hours_approved": hours_approved
+                }
+
+                with open(DATA_FILE, 'a') as f:
+                    json.dump(data, f)
+                    f.write('\n')
+
+            time.sleep(900)  # sleep for 15 minutes
+        except Exception as e:
+            print(f"An error occurred while fetching and saving data: {str(e)}")
+            time.sleep(60)  # if an error occurs, wait for 1 minute before retrying
 
 @app.route('/api/hours', methods=['POST'])
 def get_hours():
@@ -135,17 +162,16 @@ def ping():
 @app.route('/api/stats', methods=['GET'])
 def hour_stats():
     try:
-        data = request.form
-        user_id = data.get('user_id')
-        channel_id = data.get('channel_id')
-
-        # call process_request directly
-        return process_request(user_id, channel_id)
-
+        with open(DATA_FILE, 'r') as f:
+            data = f.read()
+        return data
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
 if __name__ == '__main__':
+    # start the background thread for fetching and saving data
+    threading.Thread(target=fetch_and_save_data, daemon=True).start()
+    
     app.run(host='127.0.0.1', port=8095)
     keep_alive()
