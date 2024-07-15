@@ -6,9 +6,11 @@ import time
 from datetime import datetime
 from playwright.async_api import async_playwright
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from keep_alive import keep_alive
 
 app = Flask(__name__)
+CORS(app)
 
 SLACK_BOT_TOKEN = 'slack bot token'
 SLACK_API_URL = 'https://slack.com/api/chat.postEphemeral'
