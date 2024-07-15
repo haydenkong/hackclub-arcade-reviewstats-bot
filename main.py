@@ -3,15 +3,17 @@ import threading
 import requests
 from playwright.async_api import async_playwright
 from flask import Flask, request, jsonify
+from keep_alive import keep_alive
 
 app = Flask(__name__)
 
 SLACK_BOT_TOKEN = 'slack bot token'
 SLACK_API_URL = 'https://slack.com/api/chat.postEphemeral'
+SLACK_JOIN_URL = 'https://slack.com/api/conversations.join'
 
 async def get_rendered_content(url):
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(headless=True)  # headless mode is True
         page = await browser.new_page()
         await page.goto(url)
         await page.wait_for_load_state('networkidle')
@@ -29,7 +31,6 @@ def parse_data(text):
     lines = text.split('\n')
     hours_pending = None
     hours_approved = None
-
     for i, line in enumerate(lines):
         if line.strip() == "Hours pending review":
             try:
@@ -63,8 +64,26 @@ def send_slack_message(user_id, channel_id, response_text):
     print(f"Slack API response body: {response.text}")
     return response.status_code
 
+def join_channel(channel_id):
+    payload = {
+        "channel": channel_id
+    }
+    headers = {
+        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    response = requests.post(SLACK_JOIN_URL, json=payload, headers=headers)
+    print(f"Slack Join API response status: {response.status_code}")
+    print(f"Slack Join API response body: {response.text}")
+    return response.status_code
+
 def process_request(user_id, channel_id):
     try:
+        join_status = join_channel(channel_id)
+        if join_status != 200:
+            print("Failed to join the channel")
+            return
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         visible_text = loop.run_until_complete(get_rendered_content(url))
@@ -105,5 +124,28 @@ def get_hours():
         print(f"An error occurred: {str(e)}")
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
+@app.route('/')
+def hello():
+    return "Hello, World!"
+
+@app.route('/ping')
+def ping():
+    return "pong"
+
+@app.route('/api/stats', methods=['GET'])
+def hour_stats():
+    try:
+        data = request.form
+        user_id = data.get('user_id')
+        channel_id = data.get('channel_id')
+
+        # call process_request directly
+        return process_request(user_id, channel_id)
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='127.0.0.1', port=8095)
+    keep_alive()
