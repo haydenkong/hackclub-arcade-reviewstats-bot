@@ -171,6 +171,46 @@ def hour_stats():
         print(f"An error occurred: {str(e)}")
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
+# API to fetch the output.log file content
+@app.route('/api/logs', methods=['GET'])
+def log_stats():
+    try:
+        with open('output.log', 'r') as f:
+            data = f.read()
+        return data
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+    
+
+@app.route('/api/statwebsite', methods=['POST'])
+def stat_website():
+    try:
+        response_text = "Here is the link to Arcade Review Stats website: <https://pixelverseit.github.io/hackclub-arcade-tracker-htmlcssjs/stats.html>"
+        button_text = "Visit Arcade Review Stats website"
+        button_url = "https://pixelverseit.github.io/hackclub-arcade-tracker-htmlcssjs/stats.html"
+
+        response = {
+            "response_type": "ephemeral",
+            "text": response_text,
+            "attachments": [
+            {
+                "actions": [
+                {
+                    "type": "button",
+                    "text": button_text,
+                    "url": button_url
+                }
+                ]
+            }
+            ]
+        }
+
+        return jsonify(response)
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
 if __name__ == '__main__':
     # start the background thread for fetching and saving data
     threading.Thread(target=fetch_and_save_data, daemon=True).start()
