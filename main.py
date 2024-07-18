@@ -153,6 +153,28 @@ def get_hours():
         print(f"An error occurred: {str(e)}")
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
+@app.route('/api/realtime', methods=['GET'])
+def get_realtime_data():
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        visible_text = loop.run_until_complete(get_rendered_content(URL))
+
+        hours_pending, hours_approved = parse_data(visible_text)
+
+        if hours_pending is None or hours_approved is None:
+            return jsonify({"error": "Failed to extract data from the page."}), 500
+
+        data = {
+            "hours_pending": hours_pending,
+            "hours_approved": hours_approved
+        }
+
+        return jsonify(data)
+    except Exception as e:
+        print(f"An error occurred while scraping realtime data: {str(e)}")
+        return jsonify({"error": "An error occurred while fetching realtime data", "details": str(e)}), 500
+
 @app.route('/')
 def hello():
     return "Hello, World!"
