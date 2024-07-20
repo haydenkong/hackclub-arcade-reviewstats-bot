@@ -25,8 +25,8 @@ async def get_rendered_content(url):
         await page.goto(url)
         await page.wait_for_load_state('networkidle')
 
-        await page.wait_for_selector('text="Hours pending review"', timeout=10000)
-        await page.wait_for_selector('text="Hours approved in past 7 days"', timeout=10000)
+        await page.wait_for_selector('text="Hours pending review"', timeout=15000)
+        await page.wait_for_selector('text="Hours approved in past 7 days"', timeout=15000)
 
         visible_text = await page.evaluate('() => document.body.innerText')
         await browser.close()
