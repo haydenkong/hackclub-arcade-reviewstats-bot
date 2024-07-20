@@ -127,7 +127,7 @@ def fetch_and_save_data():
                     json.dump(data, f)
                     f.write('\n')
 
-            time.sleep(900)  # sleep for 15 minutes
+            time.sleep(300)  # Sleep for 5 minutes
         except Exception as e:
             print(f"An error occurred while fetching and saving data: {str(e)}")
             time.sleep(60)  # if an error occurs, wait for 1 minute before retrying
