@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 MOSS_USER_ID = 000000000  # user moss id, need to implement feature for custom moss id due to rate limits
 
 def validate_github_url(url):
-    pattern = r'^https?://github\.com/[\w-]+/[\w.-]+/?$'
+    pattern = r'^https?://github\.com/[\w-]+/[\w.-]+(/[\w.-]+)*/?$'
     return re.match(pattern, url) is not None
 
 def download_and_extract_repo(url, temp_dir):
@@ -24,7 +24,10 @@ def download_and_extract_repo(url, temp_dir):
     if not validate_github_url(url):
         raise ValueError(f"Invalid GitHub URL: {url}")
 
-    owner, repo = url.rstrip('/').split('/')[-2:]
+    parts = url.rstrip('/').split('/')
+    owner, repo = parts[3:5]
+    path = '/'.join(parts[5:]) if len(parts) > 5 else ''
+
     api_url = f"https://api.github.com/repos/{owner}/{repo}/zipball"
     
     logging.info(f"Requesting ZIP from GitHub API: {api_url}")
@@ -33,11 +36,24 @@ def download_and_extract_repo(url, temp_dir):
     if response.status_code == 200:
         logging.info(f"Successfully downloaded repository: {url}")
         z = zipfile.ZipFile(io.BytesIO(response.content))
-        z.extractall(temp_dir)
-        extracted_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
-        for item in os.listdir(extracted_dir):
-            shutil.move(os.path.join(extracted_dir, item), temp_dir)
-        os.rmdir(extracted_dir)
+        
+        for zip_info in z.infolist():
+            if zip_info.filename.endswith('/'):
+                continue
+            if path and not zip_info.filename.startswith(f"{z.namelist()[0]}{path}"):
+                continue
+            
+            extracted_path = os.path.join(temp_dir, os.path.relpath(zip_info.filename, f"{z.namelist()[0]}{path}"))
+            os.makedirs(os.path.dirname(extracted_path), exist_ok=True)
+            
+            with z.open(zip_info) as source, open(extracted_path, "wb") as target:
+                shutil.copyfileobj(source, target)
+            
+            # check if the file is empty and remove it if so
+            if os.path.getsize(extracted_path) == 0:
+                os.remove(extracted_path)
+                logging.info(f"Removed empty file: {extracted_path}")
+
     elif response.status_code == 404:
         logging.error(f"Repository not found: {url}")
         raise Exception(f"Repository not found. It might be private or doesn't exist: {url}")
@@ -49,7 +65,8 @@ def add_files_to_moss(moss, directory):
     for root, _, files in os.walk(directory):
         for file in files:
             file_path = os.path.join(root, file)
-            moss.addFile(file_path)
+            if os.path.getsize(file_path) > 0:  # only add non-empty files
+                moss.addFile(file_path)
 
 @app.route('/', methods=['GET', 'POST'])
 def compare_repos():
