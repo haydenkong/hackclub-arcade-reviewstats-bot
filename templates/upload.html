@@ -2,15 +2,104 @@
 <html>
 <head>
     <title>MOSS Detector - GitHub Repos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            background-color: #f5f5f7;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        form {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: 400px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #454545;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        input[type="url"]::placeholder {
+            color: #ccc;
+        }
+
+        input[type="url"]:active {
+            outline: none;
+        }
+
+        input[type="submit"] {
+            background-color: #007bff;
+            color: #fff;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #0069d9;
+        }
+
+        p {
+            color: #777;
+            font-size: 14px;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        @media (max-width: 600px) {
+            form {
+                width: 90%;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>MOSS Detector - GitHub Repos</h1>
+    <h1>MOSS Detector</h1>
     <form method="POST">
         <label for="repo1">GitHub Repository 1 URL:</label>
         <input type="url" name="repo1" required placeholder="https://github.com/owner/repo"><br><br>
         <label for="repo2">GitHub Repository 2 URL:</label>
         <input type="url" name="repo2" required placeholder="https://github.com/owner/repo"><br><br>
-        <input type="submit" value="Compare Repositories">
+        <input type="submit" value="Submit">
     </form>
+    <p>Note: Only public repositories are supported. Make sure the URLs are in the format: https://github.com/owner/repo</p>
+    <p>Made by @Hayden Kong. Open source on <a href="https://github.com/PixelVerseIT/hackclub-arcade-reviewstats-bot">GitHub</a>.</p>
 </body>
 </html>
