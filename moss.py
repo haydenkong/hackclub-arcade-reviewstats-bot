@@ -4,64 +4,66 @@ import tempfile
 import mosspy
 import argparse
 import requests
-import zipfile
-import io
-import shutil
-import re
+import base64
 import logging
+import re
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-MOSS_USER_ID = 000000000  # user moss id, need to implement feature for custom moss id due to rate limits
+MOSS_USER_ID = 4897394  # MOSS ID 
+GITHUB_API_TOKEN = 'ghp-nicetrythisisnotanactualapitoken:)'  # github API token
 
-def validate_github_url(url):
-    pattern = r'^https?://github\.com/[\w-]+/[\w.-]+(/[\w.-]+)*$'
-    return re.match(pattern, url) is not None
-
-def download_and_extract_repo(url, temp_dir):
-    logging.info(f"Attempting to download repository: {url}")
-    if not validate_github_url(url):
-        raise ValueError(f"Invalid GitHub URL: {url}")
-
-    parts = url.rstrip('/').split('/')
-    owner, repo = parts[3], parts[4]
-    subpath = '/'.join(parts[5:]) if len(parts) > 5 else ''
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/zipball"
+def parse_github_url(url):
+    # expression to match GitHub URLs
+    pattern = r'https?://github\.com/(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+)(/tree/(?P<branch>[\w.-]+))?(?P<path>/.*)?'
+    match = re.match(pattern, url)
+    if not match:
+        raise ValueError("Invalid GitHub URL")
     
-    logging.info(f"Requesting ZIP from GitHub API: {api_url}")
-    response = requests.get(api_url)
+    owner = match.group('owner')
+    repo = match.group('repo')
+    branch = match.group('branch') or 'main'  # default to 'main' if no branch specified
+    path = match.group('path') or ''
+    path = path.lstrip('/')  # remove leading slash
     
-    if response.status_code == 200:
-        logging.info(f"Successfully downloaded repository: {url}")
-        z = zipfile.ZipFile(io.BytesIO(response.content))
-        z.extractall(temp_dir)
-        extracted_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
-        
-        target_dir = os.path.join(extracted_dir, subpath) if subpath else extracted_dir
-        if not os.path.exists(target_dir):
-            raise Exception(f"Specified folder not found in the repository: {subpath}")
-        
-        for item in os.listdir(target_dir):
-            item_path = os.path.join(target_dir, item)
-            if os.path.isfile(item_path) and os.path.getsize(item_path) > 0:
-                shutil.move(item_path, temp_dir)
-            elif os.path.isfile(item_path):
-                os.remove(item_path)
-        
-        shutil.rmtree(extracted_dir)
-    elif response.status_code == 404:
-        logging.error(f"Repository not found: {url}")
-        raise Exception(f"Repository not found. It might be private or doesn't exist: {url}")
-    else:
-        logging.error(f"Failed to download repository: {url}, HTTP {response.status_code}")
-        raise Exception(f"Failed to download repository: HTTP {response.status_code}")
+    return owner, repo, branch, path
+
+def download_github_folder(owner, repo, branch, path, temp_dir):
+    headers = {'Authorization': f'token {GITHUB_API_TOKEN}'} if GITHUB_API_TOKEN else {}
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={branch}"
+    response = requests.get(api_url, headers=headers)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch repository contents: HTTP {response.status_code}")
+
+    contents = response.json()
+
+    # handle case if contents is a single file
+    if not isinstance(contents, list):
+        contents = [contents]
+
+    for item in contents:
+        if item['type'] == 'file':
+            file_url = item['download_url']
+            file_path = os.path.join(temp_dir, item['name'])
+            
+            file_response = requests.get(file_url, headers=headers)
+            if file_response.status_code == 200:
+                with open(file_path, 'wb') as f:
+                    f.write(file_response.content)
+                if os.path.getsize(file_path) == 0:
+                    os.remove(file_path)
+                    logging.info(f"Removed empty file: {file_path}")
+            else:
+                logging.error(f"Failed to download file {item['name']}: HTTP {file_response.status_code}")
 
 def add_files_to_moss(moss, directory):
     for root, _, files in os.walk(directory):
         for file in files:
             file_path = os.path.join(root, file)
-            moss.addFile(file_path)
+            if os.path.getsize(file_path) > 0:  # only add non-empty files
+                moss.addFile(file_path)
 
 @app.route('/', methods=['GET', 'POST'])
 def compare_repos():
@@ -73,8 +75,11 @@ def compare_repos():
         
         with tempfile.TemporaryDirectory() as temp_dir1, tempfile.TemporaryDirectory() as temp_dir2:
             try:
-                download_and_extract_repo(repo1_url, temp_dir1)
-                download_and_extract_repo(repo2_url, temp_dir2)
+                owner1, repo1, branch1, path1 = parse_github_url(repo1_url)
+                owner2, repo2, branch2, path2 = parse_github_url(repo2_url)
+
+                download_github_folder(owner1, repo1, branch1, path1, temp_dir1)
+                download_github_folder(owner2, repo2, branch2, path2, temp_dir2)
                 
                 m = mosspy.Moss(MOSS_USER_ID, "*")  # * for all file types, debug why readme aren't included
                 
