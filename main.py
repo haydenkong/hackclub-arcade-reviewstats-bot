@@ -232,10 +232,28 @@ def stat_website():
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+    
+@app.route('/api/history', methods=['GET'])
+def history():
+    try:
+        api_key = request.headers.get('Authorization')
+        if api_key:
+            url1 = "https://hackhour.hackclub.com/api/history/w"
+            headers = {
+                "Authorization": api_key,
+                'Cache-Control': 'no-cache',
+            }
+            response = requests.get(url1, headers=headers)
+            if response.status_code != 200:
+                return jsonify({"error": "Failed to fetch history data from API", "details": response.text}), response.status_code
+            return response.text, 200
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
 if __name__ == '__main__':
     # start the background thread for fetching and saving data
     threading.Thread(target=fetch_and_save_data, daemon=True).start()
     
-    app.run(host='127.0.0.1', port=8095)
+    app.run(host='127.0.0.1', port=8096)
     keep_alive()
